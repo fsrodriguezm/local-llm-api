@@ -131,14 +131,6 @@ curl -X POST http://localhost:8000/chat \
 }
 ```
 
-### `GET /health`
-Check if the API and Ollama connection are working.
-
-**Example curl command:**
-```bash
-curl http://localhost:8000/health
-```
-
 **Response:**
 ```json
 {
@@ -167,32 +159,13 @@ curl -X POST http://localhost:8000/chat \
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Explain what FastAPI is in one sentence"}' | jq
-```
-
-**Use a low temperature for more focused/deterministic responses:**
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "What is 2+2?", "temperature": 0.1}'
-```
-
-**Use a high temperature for more creative responses:**
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Write a creative story opening", "temperature": 1.5}'
-```
+```å
 
 **Enable streaming (note: currently returns full response):**
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Count to 5", "stream": true}'
-```
-
-**Check API health:**
-```bash
-curl http://localhost:8000/health
 ```
 
 Using Python:
@@ -222,3 +195,42 @@ local-llm-api/
 └── README.md        # This file
 ```
 
+## AWS Edge Device Use Cases
+
+This lightweight API is ideal for deployment on AWS edge computing services, enabling local AI inference without cloud round-trips.
+
+### AWS IoT Greengrass Deployment
+
+Deploy this API on edge devices using **AWS IoT Greengrass v2** for low-latency, offline-capable AI processing.
+
+**Example Use Cases:**
+
+1. **Smart Manufacturing**
+   - Quality control inspection with real-time defect analysis
+   - Equipment maintenance logs interpretation
+   - Safety compliance monitoring on factory floor
+   - No internet dependency for critical operations
+
+2. **Retail Edge Analytics**
+   - In-store customer service chatbots (offline-capable)
+   - Product description generation for local inventory
+   - Receipt/invoice processing at point-of-sale
+   - Privacy-preserving data processing (data stays local)
+
+3. **Healthcare Edge Devices**
+   - Medical record summarization on-premise
+   - Patient triage assistance in remote clinics
+   - HIPAA-compliant local processing (no cloud transmission)
+   - Works in areas with poor connectivity
+
+4. **Smart Agriculture**
+   - Crop analysis and recommendations on farm devices
+   - Equipment diagnostic interpretation
+   - Weather data analysis and planning
+   - Remote area deployment without reliable internet
+
+5. **Industrial IoT Sensors**
+   - Sensor data interpretation and alerting
+   - Anomaly detection explanations
+   - Maintenance procedure lookups
+   - Edge analytics dashboards
