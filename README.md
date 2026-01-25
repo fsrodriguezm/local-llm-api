@@ -136,6 +136,9 @@ make start-searxng
 make stop-searxng
 ```
 
+Local dev note: the bundled `searxng.settings.yml` disables the limiter to avoid
+`X-Forwarded-For` rejections when calling SearxNG from the API.
+
 ## API Endpoints
 
 ### `GET /`
