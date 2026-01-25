@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+import httpx
 import ollama
+import os
 import sys
+from typing import Optional
 
 app = FastAPI(title="Local LLM API", description="FastAPI with Ollama - dynamic model selection")
 
@@ -11,9 +14,27 @@ class ChatRequest(BaseModel):
     prompt: str
     stream: bool = False
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature for response randomness (0.0-2.0)")
+    use_search: bool = False
+    search_query: Optional[str] = None
+    search_max_results: int = Field(default=5, ge=1, le=10, description="Max search results to include")
+
+class SearchRequest(BaseModel):
+    query: str
+    max_results: int = Field(default=5, ge=1, le=10)
+    language: Optional[str] = None
+    categories: Optional[list[str]] = None
+    safesearch: int = Field(default=1, ge=0, le=2)
 
 class ChatResponse(BaseModel):
     response: str
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
 
 def get_available_models() -> list[str]:
     """Fetch available models from Ollama."""
@@ -55,9 +76,67 @@ def select_model() -> str:
             print("\nExiting...")
             sys.exit(0)
 
+def get_searxng_url() -> str:
+    return os.getenv("SEARXNG_URL", "http://localhost:8080").rstrip("/")
+
+def get_searxng_headers() -> dict[str, str]:
+    api_key = os.getenv("SEARXNG_API_KEY")
+    if not api_key:
+        return {}
+    return {"X-API-KEY": api_key}
+
+async def searxng_search(request: SearchRequest) -> list[SearchResult]:
+    params = {
+        "q": request.query,
+        "format": "json",
+        "safesearch": request.safesearch,
+    }
+    if request.language:
+        params["language"] = request.language
+    if request.categories:
+        params["categories"] = ",".join(request.categories)
+
+    url = f"{get_searxng_url()}/search"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, params=params, headers=get_searxng_headers())
+        response.raise_for_status()
+        data = response.json()
+
+    results = []
+    for item in data.get("results", [])[: request.max_results]:
+        results.append(
+            SearchResult(
+                title=item.get("title", ""),
+                url=item.get("url", ""),
+                snippet=item.get("content", "") or item.get("snippet", ""),
+            )
+        )
+    return results
+
+def build_search_context(results: list[SearchResult]) -> str:
+    if not results:
+        return ""
+    lines = ["Sources:"]
+    for idx, result in enumerate(results, 1):
+        lines.append(f"{idx}) {result.title} — {result.url}")
+        if result.snippet:
+            lines.append(f"   {result.snippet}")
+    return "\n".join(lines)
+
 @app.get("/")
 async def root():
     return {"message": "Local LLM API is running", "model": SELECTED_MODEL}
+
+@app.post("/search", response_model=SearchResponse)
+async def search(request: SearchRequest):
+    """
+    Run a web search via SearxNG and return results.
+    """
+    try:
+        results = await searxng_search(request)
+        return SearchResponse(results=results)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"SearxNG error: {str(e)}")
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -65,9 +144,20 @@ async def chat(request: ChatRequest):
     Send a prompt to the selected model and get a response
     """
     try:
+        prompt = request.prompt
+        if request.use_search:
+            search_request = SearchRequest(
+                query=request.search_query or request.prompt,
+                max_results=request.search_max_results,
+            )
+            results = await searxng_search(search_request)
+            context = build_search_context(results)
+            if context:
+                prompt = f"{context}\n\nQuestion: {request.prompt}\nAnswer with citations like [1]."
+
         response = ollama.chat(
             model=SELECTED_MODEL,
-            messages=[{"role": "user", "content": request.prompt}],
+            messages=[{"role": "user", "content": prompt}],
             stream=request.stream,
             options={"temperature": request.temperature}
         )

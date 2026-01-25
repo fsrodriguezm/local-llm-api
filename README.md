@@ -9,6 +9,7 @@ A simple and lightweight FastAPI application that uses Ollama with dynamic model
 - **Temperature Control**: Adjust response randomness (0.0-2.0)
 - **Streaming Support**: Enable streaming responses (basic implementation)
 - **Health Monitoring**: Check Ollama connectivity and see which model is active
+- **Web Search (SearxNG)**: Optional `/search` endpoint and search-augmented chat
 - **Automatic API Docs**: Built-in Swagger UI and ReDoc documentation
 - **Lightweight**: Minimal dependencies, fast startup, perfect for edge devices
 
@@ -27,9 +28,11 @@ graph TB
 
     Client -->|GET /| FastAPI
     Client -->|POST /chat| FastAPI
+    Client -->|POST /search| FastAPI
     Client -->|GET /health| FastAPI
 
     FastAPI -->|Chat Request<br/>+ temperature| Ollama
+    FastAPI -->|Search Query| SearxNG[SearxNG]
 
     Ollama -->|Response| FastAPI
     FastAPI -->|JSON Response| Client
@@ -38,6 +41,7 @@ graph TB
     style Ollama fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
     style Client fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
     style CLI fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
+    style SearxNG fill:#6366f1,stroke:#4f46e5,stroke-width:2px,color:#fff
 ```
 
 ## Request Flow
@@ -116,6 +120,13 @@ uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 The API will be available at `http://localhost:8000`
 
+### Search configuration (SearxNG)
+Set these environment variables if you want search enabled:
+```
+SEARXNG_URL=http://localhost:8080
+SEARXNG_API_KEY=optional-api-key
+```
+
 ## API Endpoints
 
 ### `GET /`
@@ -149,7 +160,10 @@ curl -X POST http://localhost:8000/chat \
 {
   "prompt": "What is the capital of France?",
   "stream": false,
-  "temperature": 0.7
+  "temperature": 0.7,
+  "use_search": false,
+  "search_query": null,
+  "search_max_results": 5
 }
 ```
 
@@ -159,6 +173,9 @@ curl -X POST http://localhost:8000/chat \
 - `temperature` (float, optional): Controls randomness in responses. Range: 0.0-2.0 (default: 0.7)
   - Lower values (e.g., 0.1) make output more focused and deterministic
   - Higher values (e.g., 1.5) make output more creative and random
+- `use_search` (boolean, optional): If true, uses SearxNG results to ground the response
+- `search_query` (string, optional): Override the search query (defaults to the prompt)
+- `search_max_results` (int, optional): Limit number of results (default: 5)
 
 **Response:**
 ```json
@@ -182,6 +199,29 @@ curl http://localhost:8000/health
   "ollama_connected": true,
   "selected_model": "llama3.1:8b-instruct-q4_K_M",
   "models_available": 3
+}
+```
+
+### `POST /search`
+Run a web search via SearxNG.
+
+**Example curl command:**
+```bash
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "FastAPI", "max_results": 3}'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "title": "FastAPI",
+      "url": "https://fastapi.tiangolo.com/",
+      "snippet": "FastAPI framework..."
+    }
+  ]
 }
 ```
 
@@ -211,6 +251,13 @@ curl -X POST http://localhost:8000/chat \
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Count to 5", "stream": true}'
+```
+
+**Search-augmented chat:**
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What is the latest Node.js LTS?", "use_search": true}'
 ```
 
 Using Python:
