@@ -2,3 +2,4 @@ use_default_settings: true
 
 server:
   limiter: false
+  secret_key: "change-me-local-secret"

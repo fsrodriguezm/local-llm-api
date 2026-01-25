@@ -139,6 +139,9 @@ make stop-searxng
 Local dev note: the bundled `searxng.settings.yml` disables the limiter to avoid
 `X-Forwarded-For` rejections when calling SearxNG from the API.
 
+If SearxNG fails to start with a secret key error, update `server.secret_key`
+in `searxng.settings.yml` to a unique value.
+
 ## API Endpoints
 
 ### `GET /`
