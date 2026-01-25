@@ -1,28 +1,43 @@
 # Local LLM API
 
-A simple and lightweight FastAPI application that uses Ollama with the qwen2.5:3b model.
+A simple and lightweight FastAPI application that uses Ollama with dynamic model selection. Choose any installed Ollama model at startup via an interactive CLI prompt.
+
+## Features
+
+- **Dynamic Model Selection**: Auto-detects all installed Ollama models and lets you choose at startup
+- **Interactive CLI**: Simple numbered menu to select your preferred model
+- **Temperature Control**: Adjust response randomness (0.0-2.0)
+- **Streaming Support**: Enable streaming responses (basic implementation)
+- **Health Monitoring**: Check Ollama connectivity and see which model is active
+- **Automatic API Docs**: Built-in Swagger UI and ReDoc documentation
+- **Lightweight**: Minimal dependencies, fast startup, perfect for edge devices
 
 ## Architecture
 
 ```mermaid
 graph TB
+    CLI[CLI Model Selection]
     Client[Client/User]
     FastAPI[FastAPI Server<br/>Port 8000]
-    Ollama[Ollama Service<br/>qwen2.5:3b]
-    
+    Ollama[Ollama Service<br/>Your Selected Model]
+
+    CLI -->|1. List Models| Ollama
+    Ollama -->|2. Available Models| CLI
+    CLI -->|3. Select Model| FastAPI
+
     Client -->|GET /| FastAPI
     Client -->|POST /chat| FastAPI
     Client -->|GET /health| FastAPI
-    
+
     FastAPI -->|Chat Request<br/>+ temperature| Ollama
-    FastAPI -->|List Models| Ollama
-    
+
     Ollama -->|Response| FastAPI
     FastAPI -->|JSON Response| Client
-    
+
     style FastAPI fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
     style Ollama fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
     style Client fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    style CLI fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
 ```
 
 ## Request Flow
@@ -32,18 +47,18 @@ sequenceDiagram
     participant Client
     participant FastAPI
     participant Ollama
-    
+
     Client->>FastAPI: POST /chat
     Note over Client,FastAPI: {prompt, temperature, stream}
-    
+
     FastAPI->>Ollama: ollama.chat()
-    Note over FastAPI,Ollama: model: qwen2.5:3b<br/>temperature: 0.7
-    
+    Note over FastAPI,Ollama: model: [selected_model]<br/>temperature: 0.7
+
     Ollama->>Ollama: Process with LLM
-    
+
     Ollama-->>FastAPI: Generated response
     FastAPI-->>Client: {response: "..."}
-    
+
     Note over Client: Response received!
 ```
 
@@ -52,7 +67,7 @@ sequenceDiagram
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv) package manager
 - [Ollama](https://ollama.ai/) installed and running
-- qwen2.5:3b model pulled in Ollama
+- At least one model installed in Ollama
 
 ## Setup
 
@@ -61,9 +76,14 @@ sequenceDiagram
 uv sync
 ```
 
-2. Make sure Ollama is running and has the qwen2.5:3b model:
+2. Make sure Ollama is running and has at least one model installed:
 ```bash
+# Example: Install a model (choose any model you prefer)
 ollama pull qwen2.5:3b
+# Or
+ollama pull llama3.1:8b
+# Or
+ollama pull mistral:7b
 ```
 
 ## Running the API
@@ -73,8 +93,24 @@ Start the server:
 uv run python main.py
 ```
 
-Or with uvicorn directly:
+You'll be prompted to select a model from your available Ollama models:
+```
+Available Ollama models:
+------------------------------
+  1. llama3.1:8b-instruct-q4_K_M
+  2. qwen2.5:3b
+  3. mistral:7b
+------------------------------
+Select a model (1-3): 2
+Selected: qwen2.5:3b
+
+Starting API server with model: qwen2.5:3b
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+**Note:** If you run with uvicorn directly, model selection won't work:
 ```bash
+# This bypasses the CLI selection - not recommended
 uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -94,12 +130,12 @@ curl http://localhost:8000/
 ```json
 {
   "message": "Local LLM API is running",
-  "model": "qwen2.5:3b"
+  "model": "llama3.1:8b-instruct-q4_K_M"
 }
 ```
 
 ### `POST /chat`
-Send a prompt to the qwen2.5:3b model.
+Send a prompt to your selected model.
 
 **Example curl command:**
 ```bash
@@ -131,12 +167,21 @@ curl -X POST http://localhost:8000/chat \
 }
 ```
 
+### `GET /health`
+Check API and Ollama connectivity, and see which model is currently selected.
+
+**Example curl command:**
+```bash
+curl http://localhost:8000/health
+```
+
 **Response:**
 ```json
 {
   "status": "healthy",
   "ollama_connected": true,
-  "models_available": 5
+  "selected_model": "llama3.1:8b-instruct-q4_K_M",
+  "models_available": 3
 }
 ```
 
