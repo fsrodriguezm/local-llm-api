@@ -85,14 +85,29 @@ def get_searxng_headers() -> dict[str, str]:
         return {}
     return {"X-API-KEY": api_key}
 
-def build_forward_headers(client_ip: Optional[str]) -> dict[str, str]:
+def get_client_ip(http_request: Request) -> str:
+    forwarded_for = http_request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = http_request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip
+    if http_request.client and http_request.client.host:
+        return http_request.client.host
+    return "127.0.0.1"
+
+def build_forward_headers(client_ip: str, http_request: Request) -> dict[str, str]:
     headers = get_searxng_headers()
-    if client_ip:
-        headers["X-Forwarded-For"] = client_ip
-        headers["X-Real-IP"] = client_ip
+    headers["X-Forwarded-For"] = client_ip
+    headers["X-Real-IP"] = client_ip
+    headers["X-Forwarded-Host"] = http_request.headers.get("host", "localhost")
+    headers["X-Forwarded-Proto"] = http_request.headers.get("x-forwarded-proto", "http")
+    user_agent = http_request.headers.get("user-agent")
+    if user_agent:
+        headers["User-Agent"] = user_agent
     return headers
 
-async def searxng_search(request: SearchRequest, client_ip: Optional[str]) -> list[SearchResult]:
+async def searxng_search(request: SearchRequest, client_ip: str, http_request: Request) -> list[SearchResult]:
     params = {
         "q": request.query,
         "format": "json",
@@ -105,7 +120,11 @@ async def searxng_search(request: SearchRequest, client_ip: Optional[str]) -> li
 
     url = f"{get_searxng_url()}/search"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(url, params=params, headers=build_forward_headers(client_ip))
+        response = await client.get(
+            url,
+            params=params,
+            headers=build_forward_headers(client_ip, http_request),
+        )
         response.raise_for_status()
         data = response.json()
 
@@ -140,7 +159,8 @@ async def search(request: SearchRequest, http_request: Request):
     Run a web search via SearxNG and return results.
     """
     try:
-        results = await searxng_search(request, http_request.client.host if http_request.client else None)
+        client_ip = get_client_ip(http_request)
+        results = await searxng_search(request, client_ip, http_request)
         return SearchResponse(results=results)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"SearxNG error: {str(e)}")
@@ -157,7 +177,8 @@ async def chat(request: ChatRequest, http_request: Request):
                 query=request.search_query or request.prompt,
                 max_results=request.search_max_results,
             )
-            results = await searxng_search(search_request, http_request.client.host if http_request.client else None)
+            client_ip = get_client_ip(http_request)
+            results = await searxng_search(search_request, client_ip, http_request)
             context = build_search_context(results)
             if context:
                 prompt = f"{context}\n\nQuestion: {request.prompt}\nAnswer with citations like [1]."
