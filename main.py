@@ -154,6 +154,25 @@ def build_search_context(results: list[SearchResult]) -> str:
             lines.append(f"   {result.snippet}")
     return "\n".join(lines)
 
+def augment_search_query(prompt: str, query: str) -> str:
+    if "site:" in query.lower():
+        return query
+
+    lowered = prompt.lower()
+    filters = []
+    if "youtube" in lowered or "yt" in lowered or "channel" in lowered:
+        filters.append("site:youtube.com")
+    if "reddit" in lowered or "subreddit" in lowered:
+        filters.append("site:reddit.com")
+    if "twitter" in lowered or "tweet" in lowered or "x.com" in lowered:
+        filters.append("site:x.com OR site:twitter.com")
+
+    if not filters:
+        return query
+
+    filter_block = " OR ".join(filters)
+    return f"{query} ({filter_block})"
+
 @app.get("/")
 async def root():
     return {"message": "Local LLM API is running", "model": SELECTED_MODEL}
@@ -179,7 +198,10 @@ async def chat(request: ChatRequest, http_request: Request):
         prompt = request.prompt
         if request.use_search:
             search_request = SearchRequest(
-                query=request.search_query or request.prompt,
+                query=augment_search_query(
+                    request.prompt,
+                    request.search_query or request.prompt,
+                ),
                 max_results=request.search_max_results,
             )
             client_ip = get_client_ip(http_request)

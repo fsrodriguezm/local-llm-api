@@ -275,6 +275,9 @@ curl -X POST http://localhost:8000/chat \
   -d '{"prompt": "What is the latest Node.js LTS?", "use_search": true}'
 ```
 
+Note: the API adds lightweight site filters when prompts mention YouTube, Reddit,
+or X/Twitter to improve results (e.g. `site:youtube.com`).
+
 Using Python:
 ```python
 import requests
