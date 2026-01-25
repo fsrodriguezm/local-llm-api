@@ -127,6 +127,12 @@ SEARXNG_URL=http://localhost:8080
 SEARXNG_API_KEY=optional-api-key
 ```
 
+Start/stop SearxNG (Docker):
+```bash
+make start-searxng
+make stop-searxng
+```
+
 ## API Endpoints
 
 ### `GET /`
