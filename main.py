@@ -85,6 +85,9 @@ def get_searxng_headers() -> dict[str, str]:
         return {}
     return {"X-API-KEY": api_key}
 
+def searxng_debug_enabled() -> bool:
+    return os.getenv("SEARXNG_DEBUG", "").lower() in {"1", "true", "yes"}
+
 def get_client_ip(http_request: Request) -> str:
     forwarded_for = http_request.headers.get("x-forwarded-for", "")
     if forwarded_for:
@@ -105,6 +108,8 @@ def build_forward_headers(client_ip: str, http_request: Request) -> dict[str, st
     user_agent = http_request.headers.get("user-agent")
     if user_agent:
         headers["User-Agent"] = user_agent
+    if searxng_debug_enabled():
+        print(f"SearxNG headers: {headers}")
     return headers
 
 async def searxng_search(request: SearchRequest, client_ip: str, http_request: Request) -> list[SearchResult]:
