@@ -127,6 +127,9 @@ SEARXNG_URL=http://localhost:8080
 SEARXNG_API_KEY=optional-api-key
 ```
 
+Note: the API forwards the client IP to SearxNG via `X-Forwarded-For` / `X-Real-IP`
+to satisfy SearxNG botdetection defaults.
+
 Start/stop SearxNG (Docker):
 ```bash
 make start-searxng

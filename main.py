@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 import httpx
 import ollama
@@ -85,7 +85,14 @@ def get_searxng_headers() -> dict[str, str]:
         return {}
     return {"X-API-KEY": api_key}
 
-async def searxng_search(request: SearchRequest) -> list[SearchResult]:
+def build_forward_headers(client_ip: Optional[str]) -> dict[str, str]:
+    headers = get_searxng_headers()
+    if client_ip:
+        headers["X-Forwarded-For"] = client_ip
+        headers["X-Real-IP"] = client_ip
+    return headers
+
+async def searxng_search(request: SearchRequest, client_ip: Optional[str]) -> list[SearchResult]:
     params = {
         "q": request.query,
         "format": "json",
@@ -98,7 +105,7 @@ async def searxng_search(request: SearchRequest) -> list[SearchResult]:
 
     url = f"{get_searxng_url()}/search"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(url, params=params, headers=get_searxng_headers())
+        response = await client.get(url, params=params, headers=build_forward_headers(client_ip))
         response.raise_for_status()
         data = response.json()
 
@@ -128,18 +135,18 @@ async def root():
     return {"message": "Local LLM API is running", "model": SELECTED_MODEL}
 
 @app.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest):
+async def search(request: SearchRequest, http_request: Request):
     """
     Run a web search via SearxNG and return results.
     """
     try:
-        results = await searxng_search(request)
+        results = await searxng_search(request, http_request.client.host if http_request.client else None)
         return SearchResponse(results=results)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"SearxNG error: {str(e)}")
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     """
     Send a prompt to the selected model and get a response
     """
@@ -150,7 +157,7 @@ async def chat(request: ChatRequest):
                 query=request.search_query or request.prompt,
                 max_results=request.search_max_results,
             )
-            results = await searxng_search(search_request)
+            results = await searxng_search(search_request, http_request.client.host if http_request.client else None)
             context = build_search_context(results)
             if context:
                 prompt = f"{context}\n\nQuestion: {request.prompt}\nAnswer with citations like [1]."
