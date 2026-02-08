@@ -6,30 +6,47 @@ A lightweight FastAPI server powered by Ollama with standard `/v1/*` endpoints f
 
 - **Standard v1 API**: `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings` endpoints
 - **Runtime Model Switching**: Change models via API without restarting
-- **Web Search Integration**: Optional SearxNG for grounded responses
+- **Web Search Integration**: SearxNG + Trafilatura for grounded responses with content extraction
 - **Embeddings Support**: Vector generation for RAG and semantic search
 - **Token Tracking**: Estimate and report token usage
 - **Health Monitoring**: Check Ollama connectivity and model status
 - **Auto-Generated Docs**: Built-in Swagger UI at `/docs`
+- **Docker Support**: One-command deployment with `docker compose up`
 
-## Prerequisites
+## Quick Start (Docker) 🐳 **RECOMMENDED**
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) package manager
-- [Ollama](https://ollama.ai/) running with at least one model installed
+```bash
+# 1. Ensure Ollama is running on host
+ollama pull llama3.1:8b-instruct-q4_K_M
 
-## Quick Start
+# 2. Start everything (API + SearxNG)
+docker compose up -d
+
+# 3. Check health
+curl http://localhost:8000/health
+curl http://localhost:8080  # SearxNG
+
+# 4. Test search with content extraction
+curl -X POST http://localhost:8000/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "FastAPI tutorial", "max_results": 3, "extract_content": true}'
+```
+
+API available at `http://localhost:8000`
+SearxNG available at `http://localhost:8080`
+
+## Quick Start (Local Development)
 
 ```bash
 # Install dependencies
 uv sync
 
 # Pull models
-ollama pull qwen2.5-coder:3b
+ollama pull llama3.1:8b-instruct-q4_K_M
 ollama pull nomic-embed-text  # For embeddings
 
 # Run with default model
-DEFAULT_MODEL="qwen2.5-coder:3b" uv run python main.py
+DEFAULT_MODEL="llama3.1:8b-instruct-q4_K_M" uv run python main.py
 
 # Or interactive selection
 uv run python main.py
@@ -78,7 +95,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1707264000,
-  "model": "qwen2.5-coder:3b",
+  "model": "llama3.1:8b-instruct-q4_K_M",
   "choices": [{
     "index": 0,
     "message": {
@@ -120,13 +137,31 @@ curl -X POST http://localhost:8000/v1/embeddings \
 ```
 
 #### `POST /v1/search`
-Web search via SearxNG (requires setup).
+Web search via SearxNG with optional content extraction.
 
 ```bash
+# Basic search (snippets only)
 curl -X POST http://localhost:8000/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "FastAPI tutorial", "max_results": 5}'
+
+# With full content extraction (Trafilatura)
+curl -X POST http://localhost:8000/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "FastAPI tutorial",
+    "max_results": 3,
+    "extract_content": true
+  }'
 ```
+
+**Parameters**:
+- `query` (required): Search query
+- `max_results` (default: 5): Number of results (1-10)
+- `extract_content` (default: false): Extract full page content using Trafilatura
+- `language`: Search language (e.g., "en")
+- `categories`: Search categories (e.g., ["general", "news"])
+- `safesearch`: 0 (off), 1 (moderate), 2 (strict)
 
 ### Utility Endpoints
 
@@ -141,22 +176,26 @@ curl -X POST http://localhost:8000/v1/search \
 | `SEARXNG_URL` | SearxNG instance URL | `http://localhost:8080` |
 | `SEARXNG_API_KEY` | Optional SearxNG API key | None |
 
-## SearxNG Setup (Optional)
+## Docker Commands
 
 ```bash
-# Start SearxNG
-make start-searxng
+# Start services
+docker compose up -d
 
-# Set environment
-export SEARXNG_URL=http://localhost:8080
+# View logs
+docker compose logs -f
 
-# Use in chat (legacy endpoint)
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "What is the latest Python version?",
-    "use_search": true
-  }'
+# Restart API only
+docker compose restart api
+
+# Stop all services
+docker compose down
+
+# Rebuild after code changes
+docker compose up -d --build
+
+# Clean everything
+docker compose down -v
 ```
 
 ## Python Client Example
@@ -182,7 +221,7 @@ print(response.json()["choices"][0]["message"]["content"])
 
 ## Performance Tips
 
-- Use smaller models: `ollama pull qwen2.5-coder:3b` or `llama3.2:1b`
+- Use smaller models: `ollama pull llama3.2:1b` or `llama3.2:3b`
 - Quantized models save memory: `llama3.1:8b-instruct-q4_K_M`
 - Dedicated embedding models: `nomic-embed-text`, `mxbai-embed-large`
 - Adjust temperature by task:

@@ -5,6 +5,8 @@ import ollama
 import os
 import sys
 from typing import Optional, List
+import trafilatura
+import asyncio
 
 app = FastAPI(
     title="Local LLM API",
@@ -53,6 +55,7 @@ class SearchRequest(BaseModel):
     language: Optional[str] = None
     categories: Optional[list[str]] = None
     safesearch: int = Field(default=1, ge=0, le=2)
+    extract_content: bool = Field(default=False, description="Extract full page content using Trafilatura")
 
 class ChatResponse(BaseModel):
     response: str
@@ -113,6 +116,7 @@ class SearchResult(BaseModel):
     title: str
     url: str
     snippet: str
+    content: Optional[str] = None  # Full extracted content via Trafilatura
 
 class SearchResponse(BaseModel):
     results: list[SearchResult]
@@ -221,7 +225,27 @@ def build_forward_headers(client_ip: str, http_request: Request) -> dict[str, st
         print(f"SearxNG headers: {headers}")
     return headers
 
-async def searxng_search(request: SearchRequest, client_ip: str, http_request: Request) -> list[SearchResult]:
+async def extract_content(url: str) -> Optional[str]:
+    """Extract clean text content from a URL using Trafilatura."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            html = response.text
+
+        # Extract main content
+        content = trafilatura.extract(
+            html,
+            include_comments=False,
+            include_tables=True,
+            no_fallback=False
+        )
+        return content
+    except Exception as e:
+        print(f"Failed to extract content from {url}: {e}")
+        return None
+
+async def searxng_search(request: SearchRequest, client_ip: str, http_request: Request, extract_full_content: bool = False) -> list[SearchResult]:
     params = {
         "q": request.query,
         "format": "json",
@@ -244,11 +268,21 @@ async def searxng_search(request: SearchRequest, client_ip: str, http_request: R
 
     results = []
     for item in data.get("results", [])[: request.max_results]:
+        title = item.get("title", "")
+        url = item.get("url", "")
+        snippet = item.get("content", "") or item.get("snippet", "")
+
+        # Optionally extract full content
+        content = None
+        if extract_full_content:
+            content = await extract_content(url)
+
         results.append(
             SearchResult(
-                title=item.get("title", ""),
-                url=item.get("url", ""),
-                snippet=item.get("content", "") or item.get("snippet", ""),
+                title=title,
+                url=url,
+                snippet=snippet,
+                content=content
             )
         )
     return results
@@ -486,10 +520,12 @@ async def embeddings(request: EmbeddingRequest):
 async def search_v1(request: SearchRequest, http_request: Request):
     """
     Run a web search via SearxNG and return results.
+
+    Set extract_content=true to fetch and extract full page content using Trafilatura.
     """
     try:
         client_ip = get_client_ip(http_request)
-        results = await searxng_search(request, client_ip, http_request)
+        results = await searxng_search(request, client_ip, http_request, request.extract_content)
         return SearchResponse(results=results)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"SearxNG error: {str(e)}")
