@@ -13,29 +13,43 @@ A lightweight FastAPI server powered by Ollama with standard `/v1/*` endpoints f
 - **Auto-Generated Docs**: Built-in Swagger UI at `/docs`
 - **Docker Support**: One-command deployment with `docker compose up`
 
-## Quick Start (Docker) 🐳 **RECOMMENDED**
+## Quick Start 🚀
 
 ```bash
-# 1. Ensure Ollama is running on host
+# 1. Install dependencies
+make install
+
+# 2. Ensure Ollama is running and pull model
 ollama pull llama3.1:8b-instruct-q4_K_M
 
-# 2. Start everything (API + SearxNG)
-docker compose up -d
+# 3. Start everything (API + SearxNG)
+make start
 
-# 3. Check health
-curl http://localhost:8000/health
-curl http://localhost:8080  # SearxNG
+# 4. Check health
+make health
 
-# 4. Test search with content extraction
-curl -X POST http://localhost:8000/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "FastAPI tutorial", "max_results": 3, "extract_content": true}'
+# 5. Test search with content extraction
+make test-search
 ```
 
 API available at `http://localhost:8000`
+API Docs at `http://localhost:8000/docs`
 SearxNG available at `http://localhost:8080`
 
-## Quick Start (Local Development)
+### Makefile Commands
+
+```bash
+make start              # Start all services
+make stop               # Stop all services
+make restart            # Restart services
+make dev                # Development mode with auto-reload
+make logs               # View API logs
+make health             # Check service health
+make status             # Show service status
+make clean              # Clean up everything
+```
+
+## Manual Start (without Makefile)
 
 ```bash
 # Install dependencies
@@ -176,27 +190,11 @@ curl -X POST http://localhost:8000/v1/search \
 | `SEARXNG_URL` | SearxNG instance URL | `http://localhost:8080` |
 | `SEARXNG_API_KEY` | Optional SearxNG API key | None |
 
-## Docker Commands
+## Architecture
 
-```bash
-# Start services
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Restart API only
-docker compose restart api
-
-# Stop all services
-docker compose down
-
-# Rebuild after code changes
-docker compose up -d --build
-
-# Clean everything
-docker compose down -v
-```
+- **FastAPI**: Runs natively on host (easier development, direct Ollama access)
+- **SearxNG**: Runs in Docker (isolated, easy to manage)
+- **Ollama**: Runs natively on host (better performance, shared models)
 
 ## Python Client Example
 
