@@ -16,6 +16,29 @@ app = FastAPI(
 
 SELECTED_MODEL: str = ""
 
+@app.on_event("startup")
+def init_selected_model() -> None:
+    """Initialize SELECTED_MODEL from DEFAULT_MODEL when running via uvicorn."""
+    global SELECTED_MODEL
+
+    if SELECTED_MODEL:
+        return
+
+    default_model = os.getenv("DEFAULT_MODEL", "").strip()
+    if not default_model:
+        return
+
+    try:
+        available = get_available_models()
+        if default_model in available:
+            SELECTED_MODEL = default_model
+            print(f"Using model from DEFAULT_MODEL: {SELECTED_MODEL}")
+        else:
+            print(f"Warning: DEFAULT_MODEL '{default_model}' not found.")
+            print(f"Available models: {', '.join(available)}")
+    except Exception as e:
+        print(f"Warning: failed to initialize DEFAULT_MODEL '{default_model}': {e}")
+
 class ChatRequest(BaseModel):
     prompt: str
     stream: bool = False

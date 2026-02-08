@@ -10,7 +10,7 @@ start:
 	@echo "⏳ Waiting for SearxNG to be ready..."
 	@sleep 3
 	@echo "🔧 Starting FastAPI server..."
-	@DEFAULT_MODEL=$(MODEL) SEARXNG_URL=http://localhost:8080 nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > api.log 2>&1 &
+	@DEFAULT_MODEL=llama3.1:8b-instruct-q4_K_M SEARXNG_URL=http://localhost:8080 nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > api.log 2>&1 &
 	@echo "✅ Services started!"
 	@echo ""
 	@echo "📊 API: http://localhost:8000"
