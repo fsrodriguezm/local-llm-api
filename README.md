@@ -17,7 +17,7 @@ A lightweight FastAPI server powered by Ollama with standard `/v1/*` endpoints f
 
 ```bash
 # 1. Ensure Ollama is running on host
-ollama pull qwen2.5-coder:3b
+ollama pull llama3.1:8b-instruct-q4_K_M
 
 # 2. Start everything (API + SearxNG)
 docker compose up -d
@@ -42,11 +42,11 @@ SearxNG available at `http://localhost:8080`
 uv sync
 
 # Pull models
-ollama pull qwen2.5-coder:3b
+ollama pull llama3.1:8b-instruct-q4_K_M
 ollama pull nomic-embed-text  # For embeddings
 
 # Run with default model
-DEFAULT_MODEL="qwen2.5-coder:3b" uv run python main.py
+DEFAULT_MODEL="llama3.1:8b-instruct-q4_K_M" uv run python main.py
 
 # Or interactive selection
 uv run python main.py
@@ -95,7 +95,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1707264000,
-  "model": "qwen2.5-coder:3b",
+  "model": "llama3.1:8b-instruct-q4_K_M",
   "choices": [{
     "index": 0,
     "message": {
@@ -221,7 +221,7 @@ print(response.json()["choices"][0]["message"]["content"])
 
 ## Performance Tips
 
-- Use smaller models: `ollama pull qwen2.5-coder:3b` or `llama3.2:1b`
+- Use smaller models: `ollama pull llama3.2:1b` or `llama3.2:3b`
 - Quantized models save memory: `llama3.1:8b-instruct-q4_K_M`
 - Dedicated embedding models: `nomic-embed-text`, `mxbai-embed-large`
 - Adjust temperature by task:
